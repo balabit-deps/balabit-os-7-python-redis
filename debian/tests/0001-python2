@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Run tests under Python 2.
+
+set -eu
+
+rm -rf redis/*
+
+python setup.py test

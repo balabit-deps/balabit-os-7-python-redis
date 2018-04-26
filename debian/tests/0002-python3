@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Run tests under Python 3
+
+set -eu
+
+rm -rf redis/*
+
+python3 setup.py test

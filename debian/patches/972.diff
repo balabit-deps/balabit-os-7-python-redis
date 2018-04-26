@@ -1,0 +1,100 @@
+# https://github.com/andymccurdy/redis-py/pull/972
+
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 006697fa..8e3d4e7d 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -5,18 +5,18 @@
+ from distutils.version import StrictVersion
+ 
+ 
+-_REDIS_VERSIONS = {}
++_REDIS_INFO = {}
+ 
+ 
+-def get_version(**kwargs):
++def get_info(**kwargs):
+     params = {'host': 'localhost', 'port': 6379, 'db': 9}
+     params.update(kwargs)
+     key = '%s:%s' % (params['host'], params['port'])
+-    if key not in _REDIS_VERSIONS:
++    if key not in _REDIS_INFO:
+         client = redis.Redis(**params)
+-        _REDIS_VERSIONS[key] = client.info()['redis_version']
++        _REDIS_INFO[key] = client.info()
+         client.connection_pool.disconnect()
+-    return _REDIS_VERSIONS[key]
++    return _REDIS_INFO[key]
+ 
+ 
+ def _get_client(cls, request=None, **kwargs):
+@@ -33,15 +33,21 @@ def teardown():
+ 
+ 
+ def skip_if_server_version_lt(min_version):
+-    check = StrictVersion(get_version()) < StrictVersion(min_version)
++    redis_version = get_info()['redis_version']
++    check = StrictVersion(redis_version) < StrictVersion(min_version)
+     return pytest.mark.skipif(check, reason="")
+ 
+ 
+ def skip_if_server_version_gte(min_version):
+-    check = StrictVersion(get_version()) >= StrictVersion(min_version)
++    redis_version = get_info()['redis_version']
++    check = StrictVersion(redis_version) >= StrictVersion(min_version)
+     return pytest.mark.skipif(check, reason="")
+ 
+ 
++def skip_unless_arch_bits(arch_bits):
++    return pytest.mark.skipif(get_info()['arch_bits'] != arch_bits,
++                              reason="server is not {}-bit".format(arch_bits))
++
+ @pytest.fixture()
+ def r(request, **kwargs):
+     return _get_client(redis.Redis, request, **kwargs)
+diff --git a/tests/test_commands.py b/tests/test_commands.py
+index b9b9b66e..1432a8c9 100644
+--- a/tests/test_commands.py
++++ b/tests/test_commands.py
+@@ -10,7 +10,8 @@
+ from redis.client import parse_info
+ from redis import exceptions
+ 
+-from .conftest import skip_if_server_version_lt, skip_if_server_version_gte
++from .conftest import (skip_if_server_version_lt, skip_if_server_version_gte,
++                       skip_unless_arch_bits)
+ 
+ 
+ @pytest.fixture()
+@@ -1469,6 +1470,7 @@ def test_geohash(self, r):
+         assert r.geohash('barcelona', 'place1', 'place2') ==\
+             ['sp3e9yg3kd0', 'sp3e9cbc3t0']
+ 
++    @skip_unless_arch_bits(64)
+     @skip_if_server_version_lt('3.2.0')
+     def test_geopos(self, r):
+         values = (2.1909389952632, 41.433791470673, 'place1') +\
+@@ -1514,6 +1516,7 @@ def test_georadius_units(self, r):
+         assert r.georadius('barcelona', 2.191, 41.433, 1, unit='km') ==\
+             ['place1']
+ 
++    @skip_unless_arch_bits(64)
+     @skip_if_server_version_lt('3.2.0')
+     def test_georadius_with(self, r):
+         values = (2.1909389952632, 41.433791470673, 'place1') +\
+@@ -1571,6 +1574,7 @@ def test_georadius_store(self, r):
+         r.georadius('barcelona', 2.191, 41.433, 1000, store='places_barcelona')
+         assert r.zrange('places_barcelona', 0, -1) == [b'place1']
+ 
++    @skip_unless_arch_bits(64)
+     @skip_if_server_version_lt('3.2.0')
+     def test_georadius_store_dist(self, r):
+         values = (2.1909389952632, 41.433791470673, 'place1') +\
+@@ -1582,6 +1586,7 @@ def test_georadius_store_dist(self, r):
+         # instead of save the geo score, the distance is saved.
+         assert r.zscore('places_barcelona', 'place1') == 88.05060698409301
+ 
++    @skip_unless_arch_bits(64)
+     @skip_if_server_version_lt('3.2.0')
+     def test_georadiusmember(self, r):
+         values = (2.1909389952632, 41.433791470673, 'place1') +\
